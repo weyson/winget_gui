@@ -1,0 +1,3 @@
+# Windows Winget GUI Application
+# No additional dependencies required
+# tkinter is included in Python standard library
