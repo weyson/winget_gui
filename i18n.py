@@ -3,6 +3,7 @@ import json
 import os
 import locale
 from typing import Dict, Optional
+from utils import resource_path, get_config_path
 
 
 class I18n:
@@ -22,8 +23,8 @@ class I18n:
     def __init__(self):
         self._current_lang = None
         self._translations = {}
-        self._config_path = os.path.join(os.path.dirname(__file__), 'config.json')
-        self._locales_dir = os.path.join(os.path.dirname(__file__), 'locales')
+        self._config_path = get_config_path()
+        self._locales_dir = resource_path('locales')
         
         self._load_config()
         self._load_translations()
