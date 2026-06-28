@@ -1,9 +1,26 @@
 """Winget 命令处理模块"""
+import re
 import subprocess
 import json
 import unicodedata
 from typing import List, Optional, Tuple
 from models import SoftwarePackage, UpgradeResult
+
+
+_PACKAGE_ID_PATTERN = re.compile(
+    r'^[^.\s\\/:*?"<>|\x01-\x1f]{1,32}'
+    r'(\.[^.\s\\/:*?"<>|\x01-\x1f]{1,32}){1,7}$'
+)
+_VERSION_PATTERN = re.compile(r'^[^\\/:*?"<>|\x01-\x1f]+$')
+_UNKNOWN_VERSION_VALUES = frozenset({
+    '未知', 'unknown', 'Unknown', 'UNKNOWN',
+    '不明', '알 수 없음', 'Неизвестно',
+    'n/a', 'N/A', '-',
+})
+_INVALID_PACKAGE_ID_VALUES = frozenset({
+    'winget', 'msstore', 'id', 'name', 'version', 'available', 'source',
+    '名称', '标识', '版本', '可用', '来源',
+})
 
 
 class WingetHandler:
@@ -119,10 +136,44 @@ class WingetHandler:
                 continue
             
             package = self._parse_package_line(line, columns)
-            if package:
+            if package and self._is_valid_package(package):
                 packages.append(package)
         
         return packages
+    
+    @staticmethod
+    def _is_valid_package_id(package_id: str) -> bool:
+        """验证软件 ID 是否符合 winget 包标识符格式"""
+        if not package_id or package_id.lower() in _INVALID_PACKAGE_ID_VALUES:
+            return False
+        if not _PACKAGE_ID_PATTERN.match(package_id):
+            return False
+        if not re.search(r'[a-zA-Z]', package_id):
+            return False
+        if re.fullmatch(r'[\d.]+', package_id):
+            return False
+        return True
+    
+    @staticmethod
+    def _is_valid_version(version: str) -> bool:
+        """验证版本号是否有效（非未知、非来源名等）"""
+        if not version or version.strip() in _UNKNOWN_VERSION_VALUES:
+            return False
+        if version.lower() in ('winget', 'msstore'):
+            return False
+        return bool(_VERSION_PATTERN.match(version))
+    
+    def _is_valid_package(self, package: SoftwarePackage) -> bool:
+        """验证解析结果是否包含有效的软件 ID 和版本信息"""
+        if not self._is_valid_package_id(package.package_id):
+            return False
+        if not self._is_valid_version(package.current_version):
+            return False
+        if not self._is_valid_version(package.available_version):
+            return False
+        if package.package_id in (package.current_version, package.available_version):
+            return False
+        return True
     
     def _parse_header_columns(self, header_line: str) -> dict:
         """解析表头列位置（使用显示宽度）"""
@@ -168,8 +219,6 @@ class WingetHandler:
     def _parse_package_line_regex(self, line: str) -> Optional[SoftwarePackage]:
         """使用正则表达式从右往左解析（主解析方法）"""
         try:
-            import re
-            
             line = line.strip()
             if not line:
                 return None

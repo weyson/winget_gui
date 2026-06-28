@@ -1,10 +1,29 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import sys
+from pathlib import Path
 
+prefix = Path(sys.prefix)
+conda_bin = prefix / 'Library' / 'bin'
+
+# Conda 的 Tcl/Tk 等 DLL 位于 Library/bin，PyInstaller 分析时默认不在 PATH 中
+os.environ['PATH'] = str(conda_bin) + os.pathsep + os.environ.get('PATH', '')
+
+_conda_dlls = [
+    'tcl86t.dll',
+    'tk86t.dll',
+    'libmpdec-4.dll',
+    'libcrypto-3-x64.dll',
+    'liblzma.dll',
+    'libbz2.dll',
+    'zlib.dll',
+]
+binaries = [(str(conda_bin / dll), '.') for dll in _conda_dlls if (conda_bin / dll).exists()]
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
+    binaries=binaries,
     datas=[('locales', 'locales')],
     hiddenimports=[],
     hookspath=[],
